@@ -1,6 +1,11 @@
-﻿# Add your full Dynatrace tenant address here
+[CmdletBinding()]
+param (
+    # Optionally, provide the entityId of an existing synthetic monitor that will be used as a template for creating new monitors. If not provided, use the hard-coded JSON.
+    [String] $entityId = ""
+)
+# Add your full Dynatrace tenant address here
 # https://*tenantid*.live.dynatrace.com for Dynatrace SaaS
-# https://dynatracemanagedurl/e/*tenant_id* for DynatraceManaged
+# https://dynatracemanagedurl/e/*environment_id* for DynatraceManaged
 $Dynatrace_Tenant = "" 
 
 #Add your API token here - requires the following permissions:
@@ -26,7 +31,17 @@ $POST_headers = @{
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 try
 {
-    $Monitors = Invoke-RestMethod -Uri $Synthetic_API -Headers $GET_Headers -Method GET
+    
+    if($entityId -ne "")
+    {
+        #Get JSON payload of existing monitor
+        $Existing_Monitor = Invoke-RestMethod -Uri "$Synthetic_API/$entityId" -Headers $GET_Headers -Method GET
+    }
+    else
+    {
+        #Just get list of monitors to confirm that the environment is accessible
+        $Monitors = Invoke-RestMethod -Uri "$Synthetic_API" -Headers $GET_Headers -Method GET
+    }
 }
 catch
 {
@@ -34,11 +49,11 @@ catch
     exit
 }
 
-#Example POST /synthetic/monitors JSON for basic browser check - customise to your own requirements
+#Example POST /synthetic/monitors JSON - customise to your own requirements
 $New_Monitor_JSON = '{
   "entityId": "SYNTHETIC_TEST-0000000000000000",
   "name": "Google Health Check",
-  "frequencyMin": 15,
+  "frequencyMin": 60,
   "enabled": false,
   "type": "BROWSER",
   "createdFrom": "GUI",
@@ -63,7 +78,7 @@ $New_Monitor_JSON = '{
     ]
   },
   "locations": [
-	"GEOLOCATION-0123456789ABCDEF"
+    "GEOLOCATION-2FD31C834DE4D601"
   ],
   "anomalyDetection": {
     "outageHandling": {
@@ -87,30 +102,35 @@ $New_Monitor_JSON = '{
   ],
   "managementZones": [],
   "automaticallyAssignedApps": [],
-  "manuallyAssignedApps": [
-    "APPLICATION-0123456789ABCDEF"
-  ],
+  "manuallyAssignedApps": [],
   "keyPerformanceMetrics": {
     "loadActionKpm": "VISUALLY_COMPLETE",
     "xhrActionKpm": "VISUALLY_COMPLETE"
   },
   "events": [
     {
-      "entityId": "SYNTHETIC_TEST_STEP-0123456789ABCDEF",
+      "entityId": "SYNTHETIC_TEST_STEP-59572FEEB94B1932",
       "name": "Loading of https://google.com",
       "sequenceNumber": 1
     }
   ]
 }'
 
-$New_Monitor = ConvertFrom-Json -InputObject $New_Monitor_JSON
+if($entityId -ne "")
+{
+    $New_Monitor = $Existing_Monitor
+}
+else
+{
+    $New_Monitor = ConvertFrom-Json -InputObject $New_Monitor_JSON
+}
 
-#Get autocheck XML
+
 [xml]$Autochecks = Get-Content -Path $Autochecks_Path
 
 foreach($autocheck in $Autochecks.CVBulkInsert.ACCollection)
 {
-    #Set name, description, url, etc. from attributes of the autocheck. Customise to your requirements.
+    #Provide name, description, url, etc. from attributes of the autocheck
     $New_Monitor.name = $autocheck.TransactionName
     $New_Monitor.script.events[0].description = $autocheck.TaskName
     $New_Monitor.script.events[0].url = $autocheck.AC0_URL
@@ -120,8 +140,8 @@ foreach($autocheck in $Autochecks.CVBulkInsert.ACCollection)
     $New_Monitor.entityId = $null
     $New_Monitor.events = $null
 
+
     #Tags array needs to be converted to just a string array (stripping the "CONTEXTLESS" part)
-	#Resetting this to a blank tags array each time
     $New_Monitor.tags = @()
     $New_Monitor.tags += $autocheck.ApplicationName
 
@@ -129,9 +149,8 @@ foreach($autocheck in $Autochecks.CVBulkInsert.ACCollection)
     $JSONPayload = $New_Monitor | ConvertTo-Json -Depth 8 -Compress
     try
     {
-		#Submit new monitor - a successful request returns the entityId of the newly-created monitor
         $monitor_entityId = Invoke-RestMethod -Uri $Synthetic_API -Headers $POST_headers -Method POST -Body $JSONPayload
-        Write-Output "New synthetic monitor created - entityId=$($monitor_entityId.entityId)"
+        Write-Output "New synthetic monitor created - entityId = $($monitor_entityId.entityId)"
     }
     catch
     {
