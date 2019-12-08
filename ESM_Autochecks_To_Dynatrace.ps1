@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param (
     # Optionally, provide the entityId of an existing synthetic monitor that will be used as a template for creating new monitors. If not provided, use the hard-coded JSON.
-    [String] $entityId = ""
+    [String] $entityId = "",
+    # Option Agent ID - Used to only upload the tests run from a specific ESM Robot and prevent duplicates for tests run from multiple
+    [String] $AgentID
 )
 # Add your full Dynatrace tenant address here
 # https://*tenantid*.live.dynatrace.com for Dynatrace SaaS
@@ -128,7 +130,14 @@ else
 
 [xml]$Autochecks = Get-Content -Path $Autochecks_Path
 
-foreach($autocheck in $Autochecks.CVBulkInsert.ACCollection)
+# Handle the AgentID param
+if ($script:AgentID) {
+  $autocheckdata = $Autochecks.CVBulkInsert.ACCollection | Where-Object -Property AgentId -EQ -Value $script:AgentID
+} else {
+  $autocheckdata = $Autochecks.CVBulkInsert.ACCollection 
+}
+
+foreach($autocheck in $autocheckdata)
 {
     #Provide name, description, url, etc. from attributes of the autocheck
     $New_Monitor.name = $autocheck.TransactionName
