@@ -24,11 +24,16 @@ At the top of the script are variables for the Dynatrace tenant ID, the API toke
 
 ```./ESM_Autochecks_To_Dynatrace.ps1```
 
-For each autocheck in the autocheck XML, create a Dynatrace synthetic monitor using the JSON template hard-coded in the script
+For each autocheck in the autocheck XML, create a Dynatrace synthetic monitor using the JSON template hard-coded in the script.
 
 ```./ESM_Autochecks_To_Dynatrace.ps1 -entityId <Synthetic entityId>```
 
 For each autocheck in the autocheck XML, create a Dynatrace synthetic monitor using the existing synthetic monitor with the supplied entityId as the template.
+
+```./ESM_Autochecks_To_Dynatrace.ps1 -AgentID <ESM Robot AgentID>```
+
+For each autocheck in the autocheck XML with the specified Agent ID, create a Dynatrace synthetic monitor using the JSON template hard-coded in the script.
+
 
 ## Output
 For each successfully created synthetic monitor, the entityID of the new monitor is output
